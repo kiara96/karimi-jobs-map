@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Where the open jobs are across Europe: live vacancies on Karimi by region, job function, seniority and work type.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://map.karimi.ai/">
+<meta property="og:title" content="Live jobs across Europe · Karimi">
+<meta property="og:description" content="Where the open jobs are across Europe: live vacancies on Karimi by region, job function, seniority and work type.">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://map.karimi.ai/">
+<title>Live Jobs Across Europe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Poppins:wght@400;500;600&display=swap">
+<style>
+/* Layout: filter bar on top, map (with headline total) left, ranked region bars right; stacks on phones.
+   Karimi brand (pamoja-frontend-v0 theme): orange #FF5E36, violet #310A5E, ink #222222, slate neutrals,
+   Poppins body + Nunito ExtraBold headings. Single light theme, like the Karimi app. */
+:root {
+  color-scheme: light;
+  --bg: #f8fafc;            /* slate-50, page */
+  --panel: #ffffff;
+  --fg: #222222;            /* karimi dark */
+  --fg-2: #475569;          /* slate-600 */
+  --fg-3: #64748b;          /* slate-500 */
+  --line: rgba(49, 10, 94, 0.14);
+  --accent: #310A5E;        /* karimi violet */
+  --orange: #FF5E36;        /* karimi orange */
+  --land-empty: #e2e8f0;    /* slate-200 */
+  --land-outside: #f1f5f9;  /* slate-100 */
+  --stroke: #ffffff;
+  --hover: #222222;
+  --bar: #FF5E36;
+  --bar-track: #f1f5f9;
+  /* Sequential ramp along the brand gradient: few jobs = pale peach, most jobs = deep violet */
+  --ramp-0: #FFD9CC; --ramp-1: #FFA68A; --ramp-2: #FF5E36; --ramp-3: #DB3F57;
+  --ramp-4: #A82B6C; --ramp-5: #6B1D7E; --ramp-6: #310A5E;
+  --font-display: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 20px;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 32px;
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.75rem; color: var(--accent); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.stamp { color: var(--fg-3); font-size: 0.8125rem; }
+
+.filters {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 18px; box-shadow: 0 0.125rem 0.5rem rgba(34,34,34,0.06); display: grid; gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end;
+}
+.filters label { display: grid; gap: 4px; font-size: 0.75rem; font-weight: 600; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.05em; }
+.filters select {
+  font: inherit; font-size: 0.875rem; text-transform: none; letter-spacing: 0; font-weight: 400;
+  color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; width: 100%;
+}
+button {
+  font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--accent); background: transparent;
+  border: 1.5px solid var(--accent); border-radius: 999px; padding: 7px 16px; cursor: pointer; white-space: nowrap;
+}
+button:hover { background: var(--accent); color: #ffffff; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: 0 0.125rem 0.5rem rgba(34,34,34,0.06); min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.panel h2 { font-family: var(--font-display); font-size: 1.125rem; font-weight: 800; margin: 0; color: var(--accent); }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.map-box { position: relative; }
+.hero { position: absolute; left: 4px; top: 4px; pointer-events: none; display: grid; gap: 2px; max-width: 46%; }
+.hero .num { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.75rem, 4vw, 2.5rem); color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.hero .lbl { color: var(--fg-2); font-size: 0.875rem; }
+.hero .sub { color: var(--fg-3); font-size: 0.75rem; }
+svg.map { width: 100%; height: auto; display: block; cursor: grab; touch-action: none; }
+svg.map:active { cursor: grabbing; }
+.region { stroke: var(--stroke); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+.region.hl { stroke: var(--hover); stroke-width: 2; }
+.outside { fill: var(--land-outside); stroke: var(--stroke); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; font-size: 0.75rem; color: var(--fg-2); }
+.legend .ramp { display: flex; gap: 2px; align-items: flex-end; }
+.legend .step { display: grid; gap: 3px; justify-items: start; }
+.legend .sw { width: 38px; height: 10px; border-radius: 2px; }
+.legend .tick { font-variant-numeric: tabular-nums; color: var(--fg-3); font-size: 0.6875rem; }
+.legend .empty { display: flex; align-items: center; gap: 6px; }
+.legend .empty .sw { width: 14px; }
+.hint { color: var(--fg-3); font-size: 0.75rem; }
+
+.bars { overflow-y: auto; max-height: 640px; margin-right: -8px; padding-right: 8px; display: grid; gap: 2px; align-content: start; }
+.row {
+  display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); gap: 10px; align-items: center;
+  padding: 3px 4px; border-radius: 4px; cursor: default;
+}
+.row:hover, .row.hl { background: var(--bar-track); }
+.row .name { font-size: 0.8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; color: var(--fg); }
+.row .name .cc { color: var(--fg-3); font-size: 0.6875rem; font-weight: 600; margin-left: 4px; letter-spacing: 0.04em; }
+.row .track { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.row .bar { height: 14px; background: var(--bar); border-radius: 0 4px 4px 0; min-width: 2px; }
+.row .val { font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+.rank-note { color: var(--fg-3); font-size: 0.75rem; }
+.row { cursor: pointer; }
+.row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row:hover .name { color: var(--accent); }
+
+.detail { display: grid; gap: 12px; align-content: start; overflow-y: auto; max-height: 640px; margin-right: -8px; padding-right: 8px; }
+.detail-head { display: grid; gap: 2px; }
+.detail-head .rname { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; color: var(--accent); line-height: 1.2; text-wrap: balance; }
+.detail-head .rmeta { color: var(--fg-2); font-size: 0.8125rem; }
+.detail-head .rmeta b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.back { justify-self: start; }
+.jobs { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.job a {
+  display: grid; gap: 3px; text-decoration: none; color: inherit;
+  border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; background: var(--panel);
+}
+.job a:hover { border-color: var(--orange); box-shadow: 0 0.375rem 1.125rem rgba(34,34,34,0.08); }
+.job .jt { font-weight: 600; color: var(--fg); font-size: 0.875rem; line-height: 1.3; }
+.job .jen { color: var(--fg-3); font-size: 0.75rem; }
+.job .jc { color: var(--fg-2); font-size: 0.8125rem; }
+.job .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.job .tag { font-size: 0.6875rem; color: var(--accent); background: rgba(49, 10, 94, 0.07); border-radius: 999px; padding: 2px 8px; }
+.job .tag.fn { color: #a4381a; background: rgba(255, 94, 54, 0.12); }
+.job .go { font-size: 0.75rem; font-weight: 600; color: var(--orange); margin-top: 2px; }
+.empty-msg { color: var(--fg-2); font-size: 0.8125rem; }
+
+.tip {
+  position: fixed; pointer-events: none; z-index: 20; background: var(--panel); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: 0.8125rem;
+  box-shadow: 0 6px 20px rgba(10, 20, 40, 0.18); max-width: 260px; display: grid; gap: 4px;
+}
+.tip .t { font-weight: 600; }
+.tip .c { color: var(--fg-3); font-size: 0.75rem; }
+.tip .n { font-family: var(--font-display); font-size: 1.375rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.tip .cities { color: var(--fg-2); font-size: 0.75rem; }
+
+.notes { color: var(--fg-2); font-size: 0.8125rem; display: grid; gap: 6px; max-width: 80ch; }
+.notes p { margin: 0; }
+.notes details summary { cursor: pointer; color: var(--accent); }
+.notes .cta a {
+  display: inline-block; font-weight: 600; color: #ffffff; background: var(--orange); text-decoration: none;
+  border-radius: 999px; padding: 9px 20px; margin-bottom: 4px;
+}
+.notes .cta a:hover { background: #e84d27; }
+.notes .credit { color: var(--fg-3); font-size: 0.75rem; }
+.notes .cols { columns: 4 140px; font-size: 0.75rem; font-variant-numeric: tabular-nums; margin-top: 6px; color: var(--fg-3); }
+
+@media (max-width: 960px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .bars { max-height: 420px; }
+}
+@media (max-width: 720px) {
+  .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters button { grid-column: 1 / -1; }
+  .hero { position: static; max-width: none; margin-bottom: 6px; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Live jobs across Europe, by region</h1>
+    <span class="stamp" id="stamp">Loading…</span>
+  </header>
+
+  <form class="filters" id="filters" onsubmit="return false">
+    <label for="f-country">Country<select id="f-country"></select></label>
+    <label for="f-function">Job function<select id="f-function"></select></label>
+    <label for="f-seniority">Seniority<select id="f-seniority"></select></label>
+    <label for="f-work">Work type<select id="f-work"></select></label>
+    <button type="button" id="clear">Clear filters</button>
+  </form>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="map-title">
+      <div class="panel-head">
+        <h2 id="map-title">Open jobs by region</h2>
+        <button type="button" id="reset-zoom">Reset zoom</button>
+      </div>
+      <div class="map-box">
+        <div class="hero">
+          <span class="num" id="total">–</span>
+          <span class="lbl" id="total-lbl">live jobs on the map</span>
+          <span class="sub" id="total-sub"></span>
+        </div>
+        <svg class="map" id="map" viewBox="0 0 800 720" role="img" aria-label="Choropleth map of live jobs per European NUTS-2 region"></svg>
+      </div>
+      <div class="legend" id="legend"></div>
+      <span class="hint">Scroll or pinch to zoom, drag to pan. Hover a region for details.</span>
+    </section>
+
+    <section class="panel" aria-labelledby="bars-title">
+      <div class="panel-head">
+        <h2 id="bars-title">Ranking</h2>
+        <span class="rank-note" id="rank-note"></span>
+      </div>
+      <div class="bars" id="bars" role="list"></div>
+      <div class="detail" id="detail" hidden></div>
+    </section>
+  </div>
+
+  <div class="notes" id="notes"></div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(async function () {
+  const W = 800, H = 720;
+  const fmt = d3.format(",");
+  const $ = (id) => document.getElementById(id);
+  // Far-off territories kept in the counts and ranking but left out of the map framing.
+  const OFF_MAP = (id) => id.startsWith("FRY") || ["ES70", "PT20", "PT30", "NO0B"].includes(id);
+
+  let data;
+  try {
+    data = await (await fetch("data.json")).json();
+  } catch (e) {
+    $("stamp").textContent = "The data file could not be loaded. Reload the page to try again.";
+    return;
+  }
+
+  // GISCO rings are counter-clockwise; d3 expects clockwise. Rewind any polygon that would cover the globe.
+  function rewind(geom) {
+    const fixPoly = (rings) => (d3.geoArea({ type: "Polygon", coordinates: rings }) > 2 * Math.PI ? rings.map((r) => r.slice().reverse()) : rings);
+    if (geom.type === "Polygon") return { type: "Polygon", coordinates: fixPoly(geom.coordinates) };
+    if (geom.type === "MultiPolygon") return { type: "MultiPolygon", coordinates: geom.coordinates.map(fixPoly) };
+    return geom;
+  }
+  const cleanName = (n) => n.split("/")[0].trim();
+
+  const regions = data.regions.map((r, i) => ({
+    i, id: r.id, iso: r.iso, name: cleanName(r.name), cities: r.top_cities,
+    feature: { type: "Feature", properties: {}, geometry: rewind(r.geometry) },
+  }));
+  const nutsIso = new Set(regions.map((r) => r.iso));
+  const background = data.background
+    .filter((c) => !nutsIso.has(c.iso))
+    .map((c) => ({ ...c, feature: { type: "Feature", properties: {}, geometry: rewind(c.geometry) } }));
+  const countryName = (iso) => data.country_names[iso] || iso;
+  const totals = data.totals;
+
+  $("stamp").textContent = "Updated " + new Date(data.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  // ---------- filters ----------
+  const fn = data.dims.function, sen = data.dims.seniority, wt = data.dims.work_type;
+  const countryTotals = d3.rollup(data.rows, (v) => d3.sum(v, (r) => r[4]), (r) => regions[r[0]].iso);
+  const countries = [...countryTotals.entries()].sort((a, b) => b[1] - a[1]);
+  const opt = (v, t) => `<option value="${v}">${t}</option>`;
+  $("f-country").innerHTML = opt("", "All countries") + countries.map(([iso, n]) => opt(iso, `${countryName(iso)} (${fmt(n)})`)).join("");
+  $("f-function").innerHTML = opt("", "All functions") + fn.map(([k, l], i) => opt(i, l)).join("");
+  $("f-seniority").innerHTML = opt("", "All levels") + sen.map((s, i) => opt(i, s)).join("");
+  $("f-work").innerHTML = opt("", "All work types") + wt.map((w, i) => opt(i, w === "on-site" ? "On-site" : w[0].toUpperCase() + w.slice(1))).join("");
+
+  const state = { country: "", f: "", s: "", w: "" };
+
+  // ---------- map ----------
+  const svg = d3.select("#map");
+  const frame = { type: "MultiPoint", coordinates: [[-11, 35], [32, 35], [-11, 71], [32, 71], [10, 71.5], [10, 34.5], [-9, 52], [30, 52]] };
+  const projection = d3.geoAzimuthalEqualArea().rotate([-10, -52]).fitExtent([[10, 10], [W - 10, H - 10]], frame);
+  const path = d3.geoPath(projection);
+  const g = svg.append("g");
+  g.append("g").selectAll("path").data(background).join("path").attr("class", "outside").attr("d", (d) => path(d.feature));
+  const regionSel = g.append("g").selectAll("path").data(regions).join("path")
+    .attr("class", "region").attr("d", (d) => path(d.feature));
+
+  const zoom = d3.zoom().scaleExtent([1, 12]).translateExtent([[-200, -200], [W + 200, H + 200]])
+    .on("zoom", (e) => g.attr("transform", e.transform));
+  svg.call(zoom);
+
+  function zoomTo(iso) {
+    if (!iso) { svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity); return; }
+    const feats = regions.filter((r) => r.iso === iso && !OFF_MAP(r.id)).map((r) => r.feature);
+    const [[x0, y0], [x1, y1]] = path.bounds({ type: "FeatureCollection", features: feats });
+    const k = Math.min(12, 0.85 / Math.max((x1 - x0) / W, (y1 - y0) / H));
+    const t = d3.zoomIdentity.translate(W / 2, H / 2).scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
+    svg.transition().duration(700).call(zoom.transform, t);
+  }
+
+  // ---------- tooltip & highlight ----------
+  const tip = $("tip");
+  let counts = new Map(), totalNow = 0;
+  function showTip(r, ev) {
+    const n = counts.get(r.i) || 0;
+    const share = totalNow ? ((n / totalNow) * 100).toFixed(1) : "0";
+    const cities = (r.cities || []).map(([c, k]) => `${c} (${fmt(k)})`).join(", ");
+    tip.innerHTML = `<span class="t">${r.name}</span><span class="c">${countryName(r.iso)} · ${r.id}</span>`
+      + `<span class="n">${fmt(n)}</span><span class="c">${share}% of jobs in view</span>`
+      + (cities ? `<span class="cities">Top cities, all live jobs: ${cities}</span>` : "");
+    tip.hidden = false;
+    moveTip(ev);
+  }
+  function moveTip(ev) {
+    const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+    if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+    tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+  }
+  function highlight(i, on) {
+    regionSel.filter((d) => d.i === i).classed("hl", on).each(function () { if (on) this.parentNode.appendChild(this); });
+    const row = document.querySelector(`.row[data-i="${i}"]`);
+    if (row) row.classList.toggle("hl", on);
+  }
+  regionSel
+    .on("pointerenter", (ev, d) => { highlight(d.i, true); showTip(d, ev); })
+    .on("pointermove", moveTip)
+    .on("pointerleave", (ev, d) => { highlight(d.i, false); tip.hidden = true; });
+
+  // ---------- render ----------
+  const rampVar = d3.range(7).map((k) => `var(--ramp-${k})`);
+  const nice = (v) => { const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; return (m < 1.5 ? 1 : m < 3.5 ? 2.5 : m < 7.5 ? 5 : 10) * p; };
+
+  function render() {
+    const f = state.f === "" ? null : +state.f, s = state.s === "" ? null : +state.s, w = state.w === "" ? null : +state.w;
+    counts = new Map();
+    for (const r of data.rows) {
+      if (f !== null && r[1] !== f) continue;
+      if (s !== null && r[2] !== s) continue;
+      if (w !== null && r[3] !== w) continue;
+      if (state.country && regions[r[0]].iso !== state.country) continue;
+      counts.set(r[0], (counts.get(r[0]) || 0) + r[4]);
+    }
+    totalNow = d3.sum(counts.values());
+    const nonzero = [...counts.values()].filter((v) => v > 0).sort(d3.ascending);
+
+    // Quantile breaks rounded to readable numbers, so each colour covers a similar number of regions.
+    let breaks = [];
+    if (nonzero.length) {
+      breaks = [...new Set(d3.range(1, 7).map((k) => nice(Math.max(1, d3.quantileSorted(nonzero, k / 7)))))].filter((b) => b > 1).sort(d3.ascending);
+    }
+    const color = d3.scaleThreshold().domain(breaks).range(rampVar.slice(7 - breaks.length - 1));
+    regionSel
+      .attr("fill", (d) => { const n = counts.get(d.i) || 0; return n ? color(n) : "var(--land-empty)"; })
+      .attr("opacity", (d) => (state.country && d.iso !== state.country ? 0.35 : 1));
+
+    // Legend
+    const swatches = color.range().map((c, k) => {
+      const lo = k === 0 ? 1 : breaks[k - 1];
+      return `<span class="step"><span class="sw" style="background:${c}"></span><span class="tick">${k === 0 ? "1" : fmt(lo)}${k === breaks.length ? "+" : ""}</span></span>`;
+    }).join("");
+    $("legend").innerHTML = `<span class="ramp" aria-label="Colour scale, live jobs per region">${swatches}</span>`
+      + `<span class="empty"><span class="sw" style="background:var(--land-empty)"></span>No live jobs</span>`
+      + `<span class="empty"><span class="sw" style="background:var(--land-outside);outline:1px solid var(--line)"></span>Outside NUTS coverage</span>`;
+
+    // Hero
+    const activeRegions = nonzero.length;
+    $("total").textContent = fmt(totalNow);
+    $("total-lbl").textContent = state.country ? `live jobs in ${countryName(state.country)}, by region` : "live jobs placed on the map";
+    const noCity = state.country ? (totals.country_only_no_coords[state.country] || 0) : d3.sum(Object.values(totals.country_only_no_coords));
+    $("total-sub").textContent = `${activeRegions} regions with jobs · +${fmt(noCity)} with country only, not on the map`;
+
+    // Ranking
+    const ranked = regions.filter((r) => counts.get(r.i)).sort((a, b) => counts.get(b.i) - counts.get(a.i));
+    const max = ranked.length ? counts.get(ranked[0].i) : 1;
+    $("rank-note").textContent = ranked.length && openRegion === null ? `${ranked.length} regions · click one for example jobs` : "";
+    $("bars").innerHTML = ranked.length
+      ? ranked.map((r) => {
+          const n = counts.get(r.i);
+          return `<div class="row" role="listitem" tabindex="0" data-i="${r.i}" title="See example jobs in ${r.name} (${countryName(r.iso)})"><span class="name">${r.name}<span class="cc">${r.iso}</span></span>`
+            + `<span class="track"><span class="bar" style="width:calc(${(n / max) * 100}% - 48px)"></span><span class="val">${fmt(n)}</span></span></div>`;
+        }).join("")
+      : `<p class="rank-note">No live jobs match these filters. Clear a filter to see more regions.</p>`;
+    if (openRegion !== null) renderDetail();
+  }
+
+  // ---------- example vacancies ----------
+  // Examples come in one file per country, fetched the first time a region in that country is opened.
+  const exampleFiles = new Map(), examplePending = new Map();
+  let openRegion = null;
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const wtLabel = (w) => (w === "on-site" ? "On-site" : w[0].toUpperCase() + w.slice(1));
+  const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "");
+  function loadExamples(iso) {
+    if (!examplePending.has(iso)) {
+      examplePending.set(iso, fetch(`examples/${iso}.json`)
+        .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then((d) => { exampleFiles.set(iso, d); })
+        .catch((e) => { examplePending.delete(iso); throw e; }));
+    }
+    return examplePending.get(iso);
+  }
+
+  async function showRegion(i) {
+    openRegion = i;
+    $("bars").hidden = true;
+    $("detail").hidden = false;
+    $("rank-note").textContent = "";
+    $("bars-title").textContent = "Example jobs";
+    const iso = regions[i].iso;
+    const pending = exampleFiles.has(iso) ? null : loadExamples(iso);
+    renderDetail();
+    if (pending) {
+      try { await pending; } catch (e) { /* renderDetail shows the retry message */ }
+      if (openRegion === i) renderDetail();
+    }
+  }
+  function closeRegion() {
+    const i = openRegion;
+    openRegion = null;
+    $("detail").hidden = true;
+    $("bars").hidden = false;
+    $("bars-title").textContent = "Ranking";
+    render();
+    const row = document.querySelector(`.row[data-i="${i}"]`);
+    if (row) { row.scrollIntoView({ block: "nearest" }); row.focus({ preventScroll: true }); }
+  }
+  function renderDetail() {
+    const r = regions[openRegion];
+    const n = counts.get(r.i) || 0;
+    const f = state.f === "" ? null : +state.f, s = state.s === "" ? null : +state.s, w = state.w === "" ? null : +state.w;
+    const filtered = f !== null || s !== null || w !== null;
+    let body;
+    const examples = exampleFiles.get(r.iso);
+    if (!examples) {
+      body = examplePending.has(r.iso) ? `<p class="empty-msg">Loading example jobs…</p>` : `<p class="empty-msg">The example jobs could not be loaded. Go back and open the region again to retry.</p>`;
+    } else {
+      const list = (examples.regions[r.i] || [])
+        .filter((j) => (f === null || j[5] === f) && (s === null || j[6] === s) && (w === null || j[7] === w))
+        .sort((a, b) => (b[8] || "").localeCompare(a[8] || ""))
+        .slice(0, 10);
+      body = list.length
+        ? `<ul class="jobs">${list.map((j) => {
+            const url = examples.job_url.replace("{id}", encodeURIComponent(j[0]));
+            const where = [j[3], j[4]].filter(Boolean).map(esc).join(" · ");
+            return `<li class="job"><a href="${url}" target="_blank" rel="noopener">`
+              + `<span class="jt">${esc(j[1])}</span>${j[2] ? `<span class="jen">${esc(j[2])}</span>` : ""}`
+              + `<span class="jc">${where}</span>`
+              + `<span class="tags"><span class="tag fn">${esc(fn[j[5]][1])}</span>`
+              + (sen[j[6]] !== "Unknown" ? `<span class="tag">${esc(sen[j[6]])}</span>` : "")
+              + (wt[j[7]] !== "Unknown" ? `<span class="tag">${esc(wtLabel(wt[j[7]]))}</span>` : "")
+              + (j[8] ? `<span class="tag">Posted ${fmtDate(j[8])}</span>` : "") + `</span>`
+              + `<span class="go">View on Karimi →</span></a></li>`;
+          }).join("")}</ul>`
+        : `<p class="empty-msg">No example jobs match these filters here. Clear a filter to see more.</p>`;
+    }
+    $("detail").innerHTML = `<button type="button" class="back" id="back">← Back to ranking</button>`
+      + `<div class="detail-head"><span class="rname">${esc(r.name)}</span>`
+      + `<span class="rmeta">${esc(countryName(r.iso))} · <b>${fmt(n)}</b> live jobs${filtered ? " matching your filters" : ""}</span>`
+      + `<span class="rmeta">Recent examples, newest first. Each one opens on Karimi.</span></div>` + body;
+    $("back").addEventListener("click", closeRegion);
+  }
+
+  $("bars").addEventListener("click", (e) => { const row = e.target.closest(".row"); if (row) showRegion(+row.dataset.i); });
+  $("bars").addEventListener("keydown", (e) => {
+    const row = e.target.closest(".row");
+    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); showRegion(+row.dataset.i); }
+  });
+
+  // Bars → map highlight
+  $("bars").addEventListener("pointerover", (e) => { const row = e.target.closest(".row"); if (row) highlight(+row.dataset.i, true); });
+  $("bars").addEventListener("pointerout", (e) => { const row = e.target.closest(".row"); if (row) highlight(+row.dataset.i, false); });
+
+  // Clicking a region filters to its country
+  regionSel.on("click", (ev, d) => {
+    if (ev.defaultPrevented) return;
+    const iso = state.country === d.iso ? "" : d.iso;
+    state.country = iso; $("f-country").value = iso; render(); zoomTo(iso);
+  });
+
+  $("f-country").addEventListener("change", (e) => { state.country = e.target.value; render(); zoomTo(state.country); });
+  $("f-function").addEventListener("change", (e) => { state.f = e.target.value; render(); });
+  $("f-seniority").addEventListener("change", (e) => { state.s = e.target.value; render(); });
+  $("f-work").addEventListener("change", (e) => { state.w = e.target.value; render(); });
+  $("clear").addEventListener("click", () => {
+    Object.assign(state, { country: "", f: "", s: "", w: "" });
+    ["f-country", "f-function", "f-seniority", "f-work"].forEach((id) => ($(id).value = ""));
+    render(); zoomTo("");
+  });
+  $("reset-zoom").addEventListener("click", () => svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity));
+
+  render();
+
+  // ---------- notes ----------
+  const noCoords = Object.entries(totals.country_only_no_coords).sort((a, b) => b[1] - a[1]);
+  $("notes").innerHTML = `
+    <p class="cta"><a href="https://app.karimi.ai/en" target="_blank" rel="noopener">Find your next job on Karimi →</a></p>
+    <p>The map counts the jobs open on Karimi on the date above, by European region. Regions are the EU's official statistical regions
+      (Eurostat NUTS-2, 2024 edition; the UK uses the 2016 edition).</p>
+    <p>${fmt(d3.sum(noCoords, (d) => d[1]))} open jobs name only a country, not a city, so they can't be placed in a region and aren't on the map.
+      The filters don't apply to them.</p>
+    <details><summary>Jobs with a country but no city</summary>
+      <div class="cols">${noCoords.map(([iso, n]) => `${countryName(iso)}: ${fmt(n)}`).join("<br>")}</div></details>
+    <p class="credit">Administrative boundaries © EuroGeographics. Job data © Karimi.</p>`;
+})();
+</script>
+</body>
+</html>
