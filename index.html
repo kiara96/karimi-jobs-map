@@ -79,7 +79,7 @@ button:hover { background: var(--accent); color: #ffffff; }
 .hero .num { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.75rem, 4vw, 2.5rem); color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
 .hero .lbl { color: var(--fg-2); font-size: 0.875rem; }
 .hero .sub { color: var(--fg-3); font-size: 0.75rem; }
-svg.map { width: 100%; height: auto; display: block; cursor: grab; touch-action: none; }
+svg.map { width: 100%; height: auto; display: block; cursor: grab; touch-action: pan-x pan-y; }
 svg.map:active { cursor: grabbing; }
 .region { stroke: var(--stroke); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
 .region.hl { stroke: var(--hover); stroke-width: 2; }
@@ -160,6 +160,8 @@ svg.map:active { cursor: grabbing; }
   .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filters button { grid-column: 1 / -1; }
   .hero { position: static; max-width: none; margin-bottom: 6px; }
+  h1 { font-size: 1.375rem; }
+  .filters { gap: 10px; padding: 12px 14px; }
 }
 </style>
 
@@ -194,7 +196,7 @@ svg.map:active { cursor: grabbing; }
         <svg class="map" id="map" viewBox="0 0 800 720" role="img" aria-label="Choropleth map of live jobs per European NUTS-2 region"></svg>
       </div>
       <div class="legend" id="legend"></div>
-      <span class="hint">Scroll or pinch to zoom, drag to pan. Hover a region for details.</span>
+      <span class="hint" id="hint">Scroll to zoom, drag to pan. Click a country to zoom in, then click a region for example jobs.</span>
     </section>
 
     <section class="panel" aria-labelledby="bars-title">
@@ -272,9 +274,16 @@ svg.map:active { cursor: grabbing; }
   const regionSel = g.append("g").selectAll("path").data(regions).join("path")
     .attr("class", "region").attr("d", (d) => path(d.feature));
 
+  // On touch screens one finger scrolls the page; the map only takes two-finger gestures (pinch and pan).
   const zoom = d3.zoom().scaleExtent([1, 12]).translateExtent([[-200, -200], [W + 200, H + 200]])
+    .filter((e) => (e.type === "touchstart" ? e.touches.length >= 2 : (!e.ctrlKey || e.type === "wheel") && !e.button))
+    .on("start", () => { tip.hidden = true; })
     .on("zoom", (e) => g.attr("transform", e.transform));
   svg.call(zoom);
+  window.addEventListener("scroll", () => { tip.hidden = true; }, { passive: true });
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    $("hint").textContent = "Use two fingers to zoom and move the map. Tap a country to zoom in, then tap a region for example jobs.";
+  }
 
   function zoomTo(iso) {
     if (!iso) { svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity); return; }
@@ -306,13 +315,16 @@ svg.map:active { cursor: grabbing; }
     tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
   }
   function highlight(i, on) {
-    regionSel.filter((d) => d.i === i).classed("hl", on).each(function () { if (on) this.parentNode.appendChild(this); });
+    // Raise the outline above its neighbours, but only when needed: re-inserting the node under the cursor
+    // between mousedown and mouseup makes the browser drop the click.
+    regionSel.filter((d) => d.i === i).classed("hl", on).each(function () { if (on && this.nextSibling) this.parentNode.appendChild(this); });
     const row = document.querySelector(`.row[data-i="${i}"]`);
     if (row) row.classList.toggle("hl", on);
   }
   regionSel
-    .on("pointerenter", (ev, d) => { highlight(d.i, true); showTip(d, ev); })
-    .on("pointermove", moveTip)
+    // Touch has no hover: a tap zooms in or opens the examples, so the hover card would only get stuck on screen.
+    .on("pointerenter", (ev, d) => { if (ev.pointerType === "touch") return; highlight(d.i, true); showTip(d, ev); })
+    .on("pointermove", (ev) => { if (ev.pointerType !== "touch") moveTip(ev); })
     .on("pointerleave", (ev, d) => { highlight(d.i, false); tip.hidden = true; });
 
   // ---------- render ----------
@@ -459,11 +471,18 @@ svg.map:active { cursor: grabbing; }
   $("bars").addEventListener("pointerover", (e) => { const row = e.target.closest(".row"); if (row) highlight(+row.dataset.i, true); });
   $("bars").addEventListener("pointerout", (e) => { const row = e.target.closest(".row"); if (row) highlight(+row.dataset.i, false); });
 
-  // Clicking a region filters to its country
+  // First click on a region zooms into its country; a click inside the selected country opens that region's examples.
+  // Zooming back out is only done from Reset zoom, Clear filters or the country menu.
+  const singleColumn = window.matchMedia("(max-width: 960px)");
   regionSel.on("click", (ev, d) => {
     if (ev.defaultPrevented) return;
-    const iso = state.country === d.iso ? "" : d.iso;
-    state.country = iso; $("f-country").value = iso; render(); zoomTo(iso);
+    tip.hidden = true;
+    if (state.country !== d.iso) {
+      state.country = d.iso; $("f-country").value = d.iso; render(); zoomTo(d.iso);
+      return;
+    }
+    showRegion(d.i);
+    if (singleColumn.matches) $("bars-title").closest(".panel").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   $("f-country").addEventListener("change", (e) => { state.country = e.target.value; render(); zoomTo(state.country); });
